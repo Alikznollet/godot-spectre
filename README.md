@@ -113,6 +113,7 @@ From here, you can configure:
 * **Max Files:** How many old log files to keep before deleting them.
 * **Max Buffer Size:** How many messages to queue before forcibly flushing to the disk.
 * **Show PID in Print:** Toggle Process ID prefixes in the console.
+* **Include Shortened Trace:** Toggle shortened trace prefixes in the logs. 
 * **Active Channels:** A convenient checklist of which channels should be active on startup.
 * **Colors:** Customize the exact console colors for Debug, Info, Warn, Error, and Critical events!
 
