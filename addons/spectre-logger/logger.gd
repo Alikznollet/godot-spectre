@@ -48,6 +48,11 @@ static var _show_pid_in_print: bool = false
 ## Can be disabled in the project settings
 static var _crash_on_critical: bool = true
 
+## Whether to include a shortened trace in all logs.
+## By default on in debug builds but can be turned off in the project settings.
+## Forced off in production builds.
+static var _include_shortened_trace: bool = true
+
 ## Which events cause a flush to the log file.
 const _FLUSH_EVENTS: PackedByteArray = [
 	Event.ERROR,
@@ -91,6 +96,7 @@ static func _static_init() -> void:
 	_max_log_files = ProjectSettings.get_setting(SpectrePaths.MAX_FILES_SETTING, 5)
 	_max_buffer_size = ProjectSettings.get_setting(SpectrePaths.MAX_BUFFER_SIZE_SETTING, 10)
 	_show_pid_in_print = ProjectSettings.get_setting(SpectrePaths.SHOW_PID_IN_PRINT_SETTING, false)
+	_include_shortened_trace = ProjectSettings.get_setting(SpectrePaths.INCLUDE_SHORTENED_TRACE, true) and OS.is_debug_build() # We force it off if no debug build.
 	_crash_on_critical = ProjectSettings.get_setting(SpectrePaths.CRASH_ON_CRITICAL_SETTING, true)
 	_min_log_level = ProjectSettings.get_setting(SpectrePaths.MIN_LOG_LEVEL_SETTING, Event.DEBUG)
 
@@ -179,12 +185,36 @@ static func _get_gdscript_backtrace(script_backtraces: Array[ScriptBacktrace]) -
 
 ## Formats a Log message properly.
 static func _format_log_message(message: String, event: Event, channel: Channel) -> String:
-	return "[{time}] [{event}] [{channel}] {message}".format({
+	return "{shortened_trace}[{time}] [{event}] [{channel}] {message}".format({
+		"shortened_trace": _get_shortened_trace(), # Could be empty if not a debug build.
 		"time": _get_timestamp(),
 		"event": _event_strings[event],
 		"channel": _channel_strings[channel],
 		"message": message
 	})
+
+## Returns either a string with a formatted shortened trace or an empty string.
+static func _get_shortened_trace() -> String:
+	var shortened_trace: String = ""
+	if _include_shortened_trace:
+		var stack = get_stack()
+		if stack.size() > 0:
+			var this_script_path: String = stack[0].source
+			var caller: Dictionary = {}
+
+			# We'll loop through the stack to find the first other script.
+			for i in range(1, stack.size()):
+				if stack[i].source != this_script_path:
+					caller = stack[i]
+					break
+			
+			if not caller.is_empty():
+				var file_name: String = caller.source.get_file()
+				var line_number: int = caller.line
+				var func_name: String = caller.function
+				shortened_trace = "[%s:%d in %s()] " % [file_name, line_number, func_name]
+
+	return shortened_trace
 
 ## Returns a formatted timestamp including the current milliseconds.
 static func _get_timestamp() -> String:

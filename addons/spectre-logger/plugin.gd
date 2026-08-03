@@ -88,6 +88,11 @@ func _enter_tree() -> void:
 		TYPE_BOOL
 	)
 	_add_setting(
+		SpectrePaths.INCLUDE_SHORTENED_TRACE,
+		true,
+		TYPE_BOOL
+	)
+	_add_setting(
 		SpectrePaths.MAX_BUFFER_SIZE_SETTING,
 		10,
 		TYPE_INT,
