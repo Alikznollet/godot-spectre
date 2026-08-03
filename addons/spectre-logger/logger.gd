@@ -223,62 +223,6 @@ static func _get_timestamp() -> String:
 	var ms = int((unix_time - int(unix_time)) * 1000)
 	return "%02d:%02d:%02d.%03d" % [dt.hour, dt.minute, dt.second, ms]
 
-## Converts any Variant into a cleanly indented, multi-line string.
-static func _stringify_variant(val: Variant, depth: int = 0) -> String:
-	# Prevent infinite recursion.
-	if depth > 10: # TODO: Make this a setting.
-		return "[...Max Depth Reached...]"
-
-	match typeof(val):
-		TYPE_STRING:
-			# Add quotes around strings inside of a container
-			return '"%s"' % val if depth > 0 else val
-
-		TYPE_DICTIONARY:
-			var dict: Dictionary = val
-			if dict.is_empty():
-				return "{}"
-			
-			var indent: String = "  ".repeat(depth + 1)
-			var closing_indent: String = "  ".repeat(depth)
-			var items: Array[String] = []
-
-			for key in dict:
-				var key_str: String = _stringify_variant(key, depth + 1)
-				var val_str: String = _stringify_variant(dict[key], depth + 1)
-				items.append("%s%s: %s" % [indent, key_str, val_str])
-
-			return "{\n%s\n%s}" % [",\n".join(items), closing_indent]
-
-		TYPE_ARRAY:
-			var arr: Array = val
-			if arr.is_empty():
-				return "[]"
-
-			var indent: String = "  ".repeat(depth + 1)
-			var closing_indent: String = "  ".repeat(depth)
-			var items: Array[String] = []
-			
-			for item in arr:
-				items.append("%s%s" % [indent, _stringify_variant(item, depth + 1)])
-
-			return "[\n%s\n%s]" % [",\n".join(items), closing_indent]
-
-		TYPE_OBJECT:
-			if val == null:
-				return "null"
-			if val is Node:
-				return "<Node:%s (%s)>" % [val.name, val.get_class()]
-			elif val is Resource and val.resource_path != "":
-				return "<Resource:%s>" % val.resource_path.get_file()
-			elif val.get_script() != null:
-				return "<Object:%s>" % val.get_script().resource_path.get_file()
-			else:
-				return "<Object:%s>" % val.get_class()
-
-		_:
-			return str(val)
-
 # -- Engine Interception -- #
 
 ## Logs an actual engine error.
