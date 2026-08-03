@@ -28,10 +28,22 @@ func _ready() -> void:
 	# When the engine crashes all Spectres that haven't been flushed yet are flushed.
 	Spectre.info("Now this should be logged too when the engine crashes naturally.")
 	Spectre.debug("And this too.")
-	var crash_array: Array = []
+
+	# When printing an array or object it comes out formatted
+	var array: Array = [1, 2, "test", Vector2i.LEFT]
+	Spectre.debug(array)
+
+	var dict: Dictionary = {
+		"test": "this is a test",
+		Vector2i.DOWN: {}
+	}
+	Spectre.debug(dict)
+
+	var node: Node = Node.new()
+	Spectre.debug(node)
 
 	# For the sake of seeing the printed values we'll wait a second here.
 	await get_tree().create_timer(0.5).timeout
 
 	@warning_ignore("unused_variable")
-	var foo = crash_array[0] # This should crash the engine.
+	var foo = array[5] # This should crash the engine.

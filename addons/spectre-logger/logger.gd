@@ -184,13 +184,13 @@ static func _get_gdscript_backtrace(script_backtraces: Array[ScriptBacktrace]) -
 	return "Backtrace N/A" if gdscript == -1 else str(script_backtraces[gdscript])
 
 ## Formats a Log message properly.
-static func _format_log_message(message: String, event: Event, channel: Channel) -> String:
-	return "{shortened_trace}[{time}] [{event}] [{channel}] {message}".format({
-		"shortened_trace": _get_shortened_trace(), # Could be empty if not a debug build.
+static func _format_log_message(message: Variant, event: Event, channel: Channel) -> String:
+	return "[{time}] [{event}] [{channel}] {shortened_trace}{message}".format({
 		"time": _get_timestamp(),
 		"event": _event_strings[event],
 		"channel": _channel_strings[channel],
-		"message": message
+		"shortened_trace": _get_shortened_trace(), # Could be empty if not a debug build.
+		"message": str(message)
 	})
 
 ## Returns either a string with a formatted shortened trace or an empty string.
@@ -223,6 +223,62 @@ static func _get_timestamp() -> String:
 	var ms = int((unix_time - int(unix_time)) * 1000)
 	return "%02d:%02d:%02d.%03d" % [dt.hour, dt.minute, dt.second, ms]
 
+## Converts any Variant into a cleanly indented, multi-line string.
+static func _stringify_variant(val: Variant, depth: int = 0) -> String:
+	# Prevent infinite recursion.
+	if depth > 10: # TODO: Make this a setting.
+		return "[...Max Depth Reached...]"
+
+	match typeof(val):
+		TYPE_STRING:
+			# Add quotes around strings inside of a container
+			return '"%s"' % val if depth > 0 else val
+
+		TYPE_DICTIONARY:
+			var dict: Dictionary = val
+			if dict.is_empty():
+				return "{}"
+			
+			var indent: String = "  ".repeat(depth + 1)
+			var closing_indent: String = "  ".repeat(depth)
+			var items: Array[String] = []
+
+			for key in dict:
+				var key_str: String = _stringify_variant(key, depth + 1)
+				var val_str: String = _stringify_variant(dict[key], depth + 1)
+				items.append("%s%s: %s" % [indent, key_str, val_str])
+
+			return "{\n%s\n%s}" % [",\n".join(items), closing_indent]
+
+		TYPE_ARRAY:
+			var arr: Array = val
+			if arr.is_empty():
+				return "[]"
+
+			var indent: String = "  ".repeat(depth + 1)
+			var closing_indent: String = "  ".repeat(depth)
+			var items: Array[String] = []
+			
+			for item in arr:
+				items.append("%s%s" % [indent, _stringify_variant(item, depth + 1)])
+
+			return "[\n%s\n%s]" % [",\n".join(items), closing_indent]
+
+		TYPE_OBJECT:
+			if val == null:
+				return "null"
+			if val is Node:
+				return "<Node:%s (%s)>" % [val.name, val.get_class()]
+			elif val is Resource and val.resource_path != "":
+				return "<Resource:%s>" % val.resource_path.get_file()
+			elif val.get_script() != null:
+				return "<Object:%s>" % val.get_script().resource_path.get_file()
+			else:
+				return "<Object:%s>" % val.get_class()
+
+		_:
+			return str(val)
+
 # -- Engine Interception -- #
 
 ## Logs an actual engine error.
@@ -254,7 +310,7 @@ func _log_message(message: String, log_message_error: bool) -> void:
 # -- Custom Logging -- #
 
 ## Logs a specific message using it's event and channel values.
-static func _log(message: String, event: Event, channel: Channel) -> void:
+static func _log(message: Variant, event: Event, channel: Channel) -> void:
 	if not _is_logger_active or event < _min_log_level or not channel in _active_channels: return
 
 	message = _format_log_message(message, event, channel)
@@ -267,23 +323,23 @@ static func _log(message: String, event: Event, channel: Channel) -> void:
 	_print_event(message, event)
 
 # Send and DEBUG message to the log. Default Channel is GENERAL.
-static func debug(message: String, channel: Channel = Channel.GENERAL) -> void:
+static func debug(message: Variant, channel: Channel = Channel.GENERAL) -> void:
 	_log(message, Event.DEBUG, channel)
 
 # Send and INFO message to the log. Default Channel is GENERAL.
-static func info(message: String, channel: Channel = Channel.GENERAL) -> void:
+static func info(message: Variant, channel: Channel = Channel.GENERAL) -> void:
 	_log(message, Event.INFO, channel)
 
 ## Send a Warn message to the log. Default Channel is GENERAL.
-static func warn(message: String, channel: Channel = Channel.GENERAL) -> void:
+static func warn(message: Variant, channel: Channel = Channel.GENERAL) -> void:
 	_log(message, Event.WARN, channel)
 
 ## Send an Error message to the log. Default Channel is GENERAL.
-static func error(message: String, channel: Channel = Channel.GENERAL) -> void:
+static func error(message: Variant, channel: Channel = Channel.GENERAL) -> void:
 	_log(message, Event.ERROR, channel)
 
 ## Send a Critical message to the log. Default Channel is GENERAL.
-static func critical(message: String, channel: Channel = Channel.GENERAL) -> void:
+static func critical(message: Variant, channel: Channel = Channel.GENERAL) -> void:
 	_log(message, Event.CRITICAL, channel)
 
 	# Only crash when in debug mode AND the user left the setting checked.
@@ -328,11 +384,10 @@ static func _add_message_to_file_queue(message: String, event: Event) -> void:
 
 ## Prints a single message and event. Also adds the PID if required.
 static func _print_event(message: String, event: Event) -> void:
-	var message_lines := message.split("\n")
-
-	var pid_tag: String = "[%d] " % _pid if _show_pid_in_print else ""
-	message_lines[0] = "[b][color=%s]%s%s[/color][/b]" % [_event_colors[event], pid_tag, message_lines[0]]
-	print_rich.call_deferred("[lang=tlh]%s[/lang]" % "\n".join(message_lines))
+	# Prepend the PID if the user enabled it
+	var full_message: String = "[%d] %s" % [_pid, message] if _show_pid_in_print else message
+	var colored_message: String = "[b][color=%s]%s[/color][/b]" % [_event_colors[event], full_message]
+	print_rich.call_deferred("[lang=tlh]%s[/lang]" % colored_message)
 
 ## -- Multi-Threading -- ##
 
